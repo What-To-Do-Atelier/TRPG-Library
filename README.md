@@ -1,73 +1,193 @@
-# React + TypeScript + Vite
+# TRPG 도서관 - TRPG 시나리오 검색 사이트
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+원하는 조건에 맞는 TRPG 시나리오를 찾을 수 있는 사이트
 
-Currently, two official plugins are available:
+## 실행 화면
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## React Compiler
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 실행 방법
 
-## Expanding the ESLint configuration
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 배경
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- TRPG의 인기는 점차 올라가고 있음
+- TRPG 룰북과 이에 기반한 팬메이드(fan-made) 시나리오가 늘어나고 있음
+- TRPG 시나리오가 늘어나면서, 이를 찾는 것이 어려워짐
+- 이에 시나리오를 검색할 수 있는 사이트를 개발하여, 원하는 조건에 맞는 시나리오를 찾아 즐길 수 있도록 하고자 함
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 동작 원리
+
+- TRPG 시나리오의 메타데이터를 수집하여 데이터베이스에 저장
+  - 메타데이터 수집은 사이트 관리자 및 관리자가 승인한 사용자("메타데이터 편집자")가 수행
+  - 일반 사용자는 제보 기능을 통해 시나리오의 메타데이터와 배포 원본 트윗 주소 등을 메타데이터 관리자에게 전달할 수 있으며, 메타데이터 관리자는 이를 검수하고 필요한 경우 데이터를 보강하여 등록하거나 아예 반려할 수 있음.
+- 사용자는 시나리오의 메타데이터에 대해 원하는 조건을 설정하여 검색
+- 시나리오 정보 페이지에서는 해당 시나리오의 메타데이터 및 이를 배포한 원본 트윗 등 관련 정보를 표시하고, 해당 시나리오를 배포하는 블로그(포스타입, 티스토리 등) 게시물 링크를 제공
+  - 해당 시나리오 정보에 문제가 있는 경우(오탈자, 잘못된 정보, 배포가 중단된 경우 등), 신고 기능을 통해 메타데이터 관리자들에게 제보할 수 있음
+
+### 데이터 구조
+_참고: Firebase Realtime Database가 JSON 구조를 사용하므로, 이에 맞춰서 스키마를 아래와 같이 구성함_
+
+```typescript
+type FiveGrade = 1 | 2 | 3 | 4 | 5	// 난이도: 下, 中下, 中, 中上, 上
+type CoCSkill	= ?	// CoC 기능: ?
+type UserRole = "admin" | "editor" | "user" | "banned"
+		// 역할: 관리자, 메타데이터 편집자, 일반 사용자, 차단된 사용자
+type Status = ({
+	status: 	"pending" | "accepted"	// 상태: 대기중, 승인됨
+} | {
+	status: 	"rejected"				// 상태: 반려됨
+	reason: 	string					// 반려 사유
+})
+```
+```ts
+// 사용자
+type User = {
+	key:			string		// 키 = uid
+	
+    twitterUid:		string		// 사용자의 트위터 UID
+    displayName: 	string		// Display name (a.k.a. nickname)
+    role: 			UserRole	// 사용자 역할
+    createdAt:		Date		// 생성일시(timestamp)
+}
+
+// 사용자 세션
+type Session = {
+    key: 			string	// 키 = hash
+    
+    user:    	    string	// 사용자 키 = User.uid
+    hash:			string	// 세션 해시 = hash(`${twitterUid}_${Date.now()}`)
+    expiresAt:		Date	// 세션 만료 일시(timestamp) = Date.now() + SESSION_EXPIRATION_PERIOD
+}
+```
+```ts
+// 시나리오
+type Scenario = {
+	key:						string		// 키 = `${twitterUidOfAuthor}_${twitterSid}`
+	
+	twitterUidOfAuthor: 		string		// 시나리오 제작자/제작팀의 트위터 계정 UID
+	twitterSid: 				string		// 트위터에 게시된 시나리오 배포 트윗의 status ID
+	deployURL: 					string		// 배포 URL
+	title: 						string		// 시나리오 제목
+	abbreviation:				string		// 시나리오 약칭
+	
+	basedRulebook: 				"CoC7"		// 기반 룰북: 크툴루의 부름 7판
+	numberOfPlayer:				"taiman"	// 인원: 타이만
+	background:					string		// 배경
+	estimatedTimeToPlay: 		string		// 예상 플레이 시간
+	playingDifficulty:			FiveGrade	// 플레이 난이도
+	keeperingDifficulty:		FiveGrade	// 키퍼링 난이도
+	degreeOfFreedom:			FiveGrade	// 자유도
+	recommendedRelationship: 	string		// 추천 관계
+	recommendedSkills:			CoCSkill[]	// 추천 기능
+	hasLostEnding: 				boolean		// 로스트 엔딩 유무
+	additionalInformation:		string		// 추가 정보
+	triggers: 					string[]	// 트리거 워닝
+	warnings: 					string		// 유의사항
+}
+```
+```ts
+// 시나리오 제보
+type ScenarioReport = Scenario & Status
+```
+```ts
+// 오류 신고
+type ErrorReport = Status & {
+	key:			string	// 키
+	scenarioKey: 	string	// 시나리오 키 = Scenario.key
+}
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 사용자 CRUD
+**모든 사용자**
+1. 로그인: 트위터로 로그인을 시도함
+   1. 계정이 없음: “user” 역할로 새 계정 자동 생성 후 b로 진행
+   2. 계정이 있음: 역할을 확인
+      1. `"banned"`: 관리자에게 차단해제를 요청할 것을 안내하고 로그아웃
+      2. 그 외: 로그인 세션 생성
+2. 세션 유효성 확인: 현재 해당 로그인 세션이 존재하는지 확인
+   1. 세션이 존재: 역할을 확인
+      1. `"banned"`: 관리자에게 차단해제를 요청할 것을 안내하고 로그아웃
+      2. 지정된 역할이 아님: 해당 역할이 아님을 안내하고 이전으로 돌아가기
+      3. 지정된 역할임: 유효성 확인
+   2. 세션이 존재하지 않음: 로그인 페이지로 이동
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+**등록된 사용자**
+1. 로그아웃: 세션 유효성 확인 후, 로그인 세션을 삭제
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+**유효한 사용자 = `"banned"` 외 사용자**
+1. 계정 정보 수정: 세션 유효성 확인 후, 계정 정보 페이지에서 정보 수정
+2. 세션 관리: 세션 유효성 확인 후, 현재 로그인된 세션을 열람
+   1. 세션 삭제 버튼을 클릭: 해당 세션을 삭제
+3. 탈퇴: 세션 유효성 확인 후, 해당 계정을 삭제
+
+**`"admin"`**
+1. 계정 목록: 세션 유효성 확인 후, 현재 등록된 계정 목록을 표시함
+   1. 계정 삭제: 세션 유효성 확인 후
+      1. 해당 계정을 삭제
+      2. 해당 계정의 모든 세션을 삭제
+   2. 계정 역할 부여: 세션 유효성 확인 후, 해당 계정에 역할을 지정
+      1. 해당 새 역할이 `"banned"`인 경우: 모든 세션을 삭제
+   3. 필터: 세션 유효성 확인 후, 특정 조건에 맞는 계정만 표시
+
+### 시나리오 CRUD
+**모든 사용자**
+1. 시나리오 목록: 현재 등록된 시나리오를 확인
+   1. 필터: 특정 조건에 맞는 시나리오만 표시
+   2. 항목 클릭: 해당 항목에 대한 시나리오 정보 페이지로 넘어감
+2. 시나리오 정보: 해당 시나리오에 대한 정보 표시
+   1. 배포 링크 버튼 클릭: 해당 시나리오에 연결된 배포 URL 창/탭을 새로 표시
+
+**메타데이터 관리자 = "admin" + "editor"**
+1. 시나리오 목록
+   1. 시나리오 등록: 세션 유효성 확인 후, 시나리오를 등록
+2. 시나리오 정보
+   1. 시나리오 정보 수정: 세션 유효성 확인 후, 시나리오에 등록된 정보를 수정
+   2. 시나리오 삭제: 세션 유효성 확인 후, 시나리오를 삭제
+
+### 시나리오 제보 CRUD
+**"user"**
+1. 시나리오 목록
+   1. 시나리오 제보: 세션 유효성 및 중복 제보 확인 후, 시나리오 제보 등록
+2. 중복 제보 확인: 제보하고자 하는 시나리오의 배포 트윗 주소를 기반으로 키를 생성하여 검색한 결과, 같은 키를 가진 시나리오 및 시나리오 제보가
+   1. 존재: 이미 해당 시나리오 또는 시나리오 제보가 존재함을 안내
+   2. 부존재: 중복 제보가 아님
+
+### 메타데이터 관리자
+1. 시나리오 제보 목록: 등록된 시나리오 제보의 목록이 표시됨
+   1. 필터: 세션 유효성 확인 후, 특정 조건에 맞는 항목만 표시
+2. 시나리오 제보: 해당 시나리오 제보에 대한 정보를 표시함
+   1. 시나리오 제보 정보 수정: 세션 유효성 확인 및 제보 처리 여부 확인 후, 제보 내용 중 정정해야 하는 부분을 수정
+   2. 시나리오 제보 승인: 세션 유효성 확인 및 제보 처리 여부 확인 후, 해당 시나리오 제보를 clone하여 시나리오로 등록하고, 기존 제보를 승인된 것으로 표시
+   3. 시나리오 제보 반려: 세션 유효성 확인 및 제보 처리 여부 확인 후, 해당 시나리오 제보를 반려된 것으로 표시
+3. 제보 처리 여부 확인: 해당 시나리오 제보의 `status`가
+   1. `"pending"`: 처리되지 않음
+   2. 그 외: 처리됨
+
+### 오류 신고 CRUD
+**"user"**
+1. 시나리오 정보
+   1. 오류 신고: 세션 유효성 확인 후, 해당 시나리오에 대한 오류 신고 등록
+
+**메타데이터 관리자**
+1. 오류 신고 목록: 등록된 오류 신고의 목록이 표시됨
+   1. 필터: 세션 유효성 확인 후, 특정 조건에 맞는 항목만 표시
+2. 오류 신고 정보: 해당 오류 제보에 대한 정보를 표시함
+   1. 해당 시나리오 확인 버튼 클릭: 해당 시나리오 정보 페이지를 새 탭으료 표시
+   2. 오류 신고 승인: 세션 유효성 확인 및 신고 처리 여부 확인 후, 해당 신고를 승인된 것으로 표시
+   3. 오류 신고 반려: 세션 유효성 확인 및 신고 처리 여부 확인 후, 해당 신고를 반려된 것으로 표시
+3. 신고 처리 여부 확인 = 제보 처리 여부 확인("시나리오 제보" = "오류 신고", "제보" = "신고")
+
+## 목표 및 현황
+
+- [ ] 초기 버전 제작 및 배포
+
+## 한계
+
+- 시나리오 제작자들의 권리 보호를 위해, TRPG 시나리오를 직접 배포하지 않고, 배포하는 사이트로의 링크만을 제공함
+- 인터넷 크롤링 없이 사람이 직접 작성하므로, 배포된 모든 시나리오를 커버하지 않음
+- 등록된 시나리오의 상태를 실시간으로 점검하지 않으므로 (애초에 불가능함), 이미 배포가 중단되거나 링크가 무효화되거나 데이터가 바뀔 수 있음. 이를 위해 사용자가 신고할 수 있는 기능을 제공함
+
+## 하고 싶은 말
+
