@@ -15,7 +15,7 @@ const TextButton = ({ children }: PropsWithChildren) => (
 
 const IconButton = ({ children }: { children: ReactElement<IconType> }) => {
     return (
-        <button className="hover:bg-black/15 p-2 transition rounded-xl">
+        <button className="hover:bg-black/15 p-2 transition rounded-xl cursor-pointer">
             {children}
         </button>
     );
