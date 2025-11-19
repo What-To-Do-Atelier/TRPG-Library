@@ -8,7 +8,7 @@ import {
 import { type PropsWithChildren, type ReactElement } from "react";
 
 const TextButton = ({ children }: PropsWithChildren) => (
-    <button className="cursor-pointer hover:underline hover:underline-offset-6">
+    <button className="cursor-pointer hover:bg-black/15 py-1.5 px-2.5 rounded-xl transition">
         {children}
     </button>
 );
@@ -27,7 +27,7 @@ export default function Footer() {
     };
 
     return (
-        <footer className="flex-none border-t p-10 flex justify-center gap-6 items-center">
+        <footer className="flex-none border-t p-10 flex justify-center gap-2 items-center">
             <div className="flex gap-2">
                 <span>로고</span>
                 <span className="">&copy; 2025 Whattodo Atelier</span>
