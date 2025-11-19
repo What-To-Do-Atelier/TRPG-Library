@@ -1,3 +1,11 @@
+import { type PropsWithChildren } from "react";
+
+const TextButton = ({ children }: PropsWithChildren) => (
+    <button className="cursor-pointer hover:underline hover:underline-offset-6">
+        {children}
+    </button>
+);
+
 export default function Footer() {
     return (
         <footer className="flex-none border-t p-10 flex justify-center gap-6">
@@ -5,9 +13,9 @@ export default function Footer() {
                 <span>로고</span>
                 <span className="">&copy; 2025 Whattodo Atelier</span>
             </div>
-            <button className="">공지사항</button>
-            <button className="">이용약관</button>
-            <button className="">개인정보 처리방침</button>
+            <TextButton>공지사항</TextButton>
+            <TextButton>이용약관</TextButton>
+            <TextButton>개인정보 처리방침</TextButton>
             <button className="">X</button>
             <button className="">Mastodon</button>
             <button className="">Bluesky</button>
